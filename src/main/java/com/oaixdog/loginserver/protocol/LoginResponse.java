@@ -6,7 +6,7 @@ import lombok.Setter;
 
 @Setter
 @Getter
-@Protocol(id = 1002)
+@Protocol(id = 5004)
 public class LoginResponse {
 
     private String loginTicket;

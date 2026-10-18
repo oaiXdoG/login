@@ -12,10 +12,13 @@
         <protocol location="com.zfoo.net.packet.common.Pong"/>
     </module>
 
-    <module id="3" name="login">
+    <!-- 登录服的协议模块，模块号与游戏服一致，协议号按模块号 × 1000；LoginReport、LoginReportAnswer 与游戏服共用，协议号、字段保持一致 -->
+    <module id="5" name="login">
+        <protocol location="com.oaixdog.loginserver.protocol.LoginReport"/>
+        <protocol location="com.oaixdog.loginserver.protocol.LoginReportAnswer"/>
         <protocol location="com.oaixdog.loginserver.protocol.LoginRequest"/>
-        <protocol location="com.oaixdog.loginserver.protocol.LoginResponse"/>
         <protocol location="com.oaixdog.loginserver.protocol.VersionRequest"/>
+        <protocol location="com.oaixdog.loginserver.protocol.LoginResponse"/>
         <protocol location="com.oaixdog.loginserver.protocol.VersionResponse"/>
     </module>
 

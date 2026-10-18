@@ -6,7 +6,7 @@ import lombok.Setter;
 
 @Setter
 @Getter
-@Protocol(id = 1000)
+@Protocol(id = 5002)
 public class LoginRequest {
 
     private String platform;

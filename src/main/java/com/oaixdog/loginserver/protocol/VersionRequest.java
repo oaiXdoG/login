@@ -6,7 +6,7 @@ import lombok.Setter;
 
 @Setter
 @Getter
-@Protocol(id = 1001)
+@Protocol(id = 5003)
 public class VersionRequest {
 
     private String clientVersion;

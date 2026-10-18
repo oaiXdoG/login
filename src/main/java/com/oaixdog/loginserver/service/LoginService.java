@@ -5,7 +5,7 @@ import com.oaixdog.loginserver.entity.LoginUser;
 import com.oaixdog.loginserver.exception.BusinessException;
 import com.oaixdog.loginserver.mapper.LoginUserMapper;
 import com.oaixdog.loginserver.pojo.LoginTicketData;
-import com.oaixdog.loginserver.pojo.ServerNode;
+import com.oaixdog.loginserver.protocol.LoginReport;
 import com.zfoo.protocol.util.JsonUtils;
 import com.zfoo.protocol.util.StringUtils;
 import lombok.RequiredArgsConstructor;
@@ -33,7 +33,7 @@ public class LoginService {
     private final LoginUserMapper loginUserMapper;
     private final LoginTicketService loginTicketService;
     private final VersionService versionService;
-    private final ServiceDiscoveryService serviceDiscoveryService;
+    private final ZoneService zoneService;
     private final RedisService redisService;
 
     public LoginResult login(String platform, String account, String token, String clientVersion, String resourceVersion, String loginIp) {
@@ -45,8 +45,8 @@ public class LoginService {
             throw new BusinessException("客户端资源版本过低，请更新至 " + versionResult.serverResourceVersion());
         }
 
-        ServerNode logicNode = serviceDiscoveryService.getLogic(DEFAULT_ZONE_ID);
-        if (logicNode == null) {
+        LoginReport logic = zoneService.online(DEFAULT_ZONE_ID);
+        if (logic == null) {
             throw new BusinessException("服务器维护中");
         }
 
@@ -83,7 +83,7 @@ public class LoginService {
         String loginJson = JsonUtils.object2String(ticketData);
         String loginTicket = loginTicketService.encrypt(loginJson);
 
-        return new LoginResult(loginTicket, logicNode.getHost(), logicNode.getPort());
+        return new LoginResult(loginTicket, logic.getHost(), logic.getPort());
     }
 
     private void startLiveDataTasks(long roomId) {

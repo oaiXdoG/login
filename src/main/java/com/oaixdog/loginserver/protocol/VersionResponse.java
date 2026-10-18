@@ -2,7 +2,7 @@ package com.oaixdog.loginserver.protocol;
 
 import com.zfoo.protocol.anno.Protocol;
 
-@Protocol(id = 1003)
+@Protocol(id = 5005)
 public class VersionResponse {
 
     private String serverClientVersion;
