@@ -6,6 +6,7 @@ import com.oaixdog.loginserver.exception.BusinessException;
 import com.oaixdog.loginserver.mapper.LoginUserMapper;
 import com.oaixdog.loginserver.pojo.LoginTicketData;
 import com.oaixdog.loginserver.protocol.LoginReport;
+import com.oaixdog.logsdk.LogReporter;
 import com.zfoo.protocol.util.JsonUtils;
 import com.zfoo.protocol.util.StringUtils;
 import lombok.RequiredArgsConstructor;
@@ -51,7 +52,11 @@ public class LoginService {
         }
 
         LoginUser user;
+        String loginPlatform;
+        // 直播间 ID 统一按字符串上报，与回调服的 x-roomid 一致；本地测试登录为空
+        String roomId = "";
         if (StringUtils.isNotBlank(account)) {
+            loginPlatform = LOCAL_PLATFORM;
             user = loginUserMapper.upsertLocal(LOCAL_PLATFORM, properties.getDouyinAppId(), account.trim(), loginIp);
         } else {
             if (StringUtils.isBlank(platform)) {
@@ -70,6 +75,8 @@ public class LoginService {
             if (StringUtils.isBlank(liveRoomInfo.anchorOpenId())) {
                 throw new IllegalStateException("抖音直播信息中没有主播身份");
             }
+            loginPlatform = DOUYIN_PLATFORM;
+            roomId = String.valueOf(liveRoomInfo.roomId());
             startLiveDataTasks(liveRoomInfo.roomId());
             // 回调服按直播间找区：直播间 → 区号，每次登录覆盖
             String roomRoute = JsonUtils.object2String(Map.of("zoneId", DEFAULT_ZONE_ID));
@@ -82,6 +89,16 @@ public class LoginService {
         LoginTicketData ticketData = LoginTicketData.valueOf(user.getId(), user.getAnchorOpenId(), DEFAULT_ZONE_ID);
         String loginJson = JsonUtils.object2String(ticketData);
         String loginTicket = loginTicketService.encrypt(loginJson);
+
+        // actor 是登录服账号 ID（login_user.id），游戏服的事件里以 userId 关联
+        LogReporter.event("anchor_login").actor(user.getId())
+                .put("platform", loginPlatform)
+                .put("roomId", roomId)
+                .put("zoneId", DEFAULT_ZONE_ID)
+                .put("ip", loginIp)
+                .put("clientVersion", clientVersion)
+                .put("resourceVersion", resourceVersion)
+                .send();
 
         return new LoginResult(loginTicket, logic.getHost(), logic.getPort());
     }

@@ -5,6 +5,7 @@ import com.oaixdog.loginserver.protocol.ApiResponse;
 import com.oaixdog.loginserver.protocol.LoginRequest;
 import com.oaixdog.loginserver.protocol.LoginResponse;
 import com.oaixdog.loginserver.service.LoginService;
+import com.oaixdog.logsdk.LogReporter;
 import com.zfoo.net.NetContext;
 import com.zfoo.net.anno.PacketReceiver;
 import com.zfoo.net.router.attachment.HttpAttachment;
@@ -42,12 +43,31 @@ public class LoginController {
             NetContext.getRouter().send(session, ApiResponse.success(data), attachment);
         } catch (BusinessException exception) {
             log.warn("登录业务失败: {}", exception.getMessage());
+            reportLoginFail(session, request, "business", exception.getMessage());
             attachment.setHttpResponseStatus(HttpResponseStatus.OK);
             NetContext.getRouter().send(session, ApiResponse.businessError(exception.getCode(), exception.getMessage()), attachment);
         } catch (Exception e) {
             log.error("登录接口执行失败", e);
+            reportLoginFail(session, request, "system", e.getMessage());
             attachment.setHttpResponseStatus(HttpResponseStatus.INTERNAL_SERVER_ERROR);
             NetContext.getRouter().send(session, ApiResponse.systemError(HttpResponseStatus.INTERNAL_SERVER_ERROR.code(), "服务器内部错误"), attachment);
         }
+    }
+
+    /**
+     * 登录失败：type 为 business（版本过低、服务器维护中等）或 system（平台接口失败等）
+     */
+    private void reportLoginFail(Session session, LoginRequest request, String type, String reason) {
+        var event = LogReporter.event("anchor_login_fail")
+                .put("type", type)
+                .put("reason", reason)
+                .put("ip", SessionUtils.toIp(session));
+        if (request != null) {
+            event.put("platform", request.getPlatform())
+                    .put("account", request.getAccount())
+                    .put("clientVersion", request.getClientVersion())
+                    .put("resourceVersion", request.getResourceVersion());
+        }
+        event.send();
     }
 }

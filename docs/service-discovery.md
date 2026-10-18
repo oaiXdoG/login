@@ -15,7 +15,7 @@
 - **登录服、回调服是公共组件，做 zfoo provider；游戏服做 consumer**，启动后自动连上本应用的所有登录服、回调服，并主动上报自己的信息。
 - 登录服、回调服是两个独立的提供方，各自有自己的协议模块、服务名和上报协议对象（第 3、4 节）。
 - 登录服、回调服不关心游戏服在哪，只按收到的上报维护「区 → 游戏服」表。
-- 管理后台是一个进程管理所有应用，游戏服用 HTTP 定时上报给后台。
+- 管理后台是一个进程管理所有应用；登录服、回调服、游戏服三种服务都用 HTTP 定时把自己的信息上报给后台（统一用 `admin-report-client`，见第 7 节），后台据此把服务和托管进程绑定。
 - 应用之间用 ZooKeeper 路径隔离：A 产品的服务只能发现 A 产品的服务，互不影响。
 
 ```text
@@ -27,10 +27,10 @@
        zfoo 连接 + LoginReport        zfoo 连接 + CallbackReport
                   │                        │  DanmuPush / DanmuGiftPush（回调服 → 游戏服）
                   └───── 游戏服（logic，consumer）─────┘
-                                  │
-                                  │ HTTP 定时上报（签名）
-                                  ▼
-                           管理后台（全局一个）
+
+    登录服 ─┐
+    回调服 ─┼── HTTP 定时上报（admin-report-client，签名）──▶ 管理后台（全局一个）
+    游戏服 ─┘
 ```
 
 ## 2. ZooKeeper 路径
@@ -133,25 +133,63 @@ serverId（区 ID）→ { report, session, reportTime }
 
 ## 7. 管理后台上报（HTTP）
 
-管理后台全局一个进程，地址配置在游戏服 `admin.report-url`。
+管理后台全局一个进程。**登录服、回调服、游戏服都向后台上报**，统一使用上报包 `com.oaixdog:admin-report-client`，各服务不再自己写 HTTP 上报和签名：
 
-- 请求：`POST <admin.report-url>`，`Content-Type: application/json`，请求体：
+```java
+// 服务就绪后调用一次；停服时调用 AdminReporter.stop()
+AdminReporter.start(appKey, type, nodeId, adminReportUrl, adminReportSecret, () -> content);
+```
 
-  ```json
-  { "serverId": 1, "instanceId": "…", "host": "111.230.143.165", "port": 9020, "innerHost": "10.0.0.8", "gmPort": 9021 }
-  ```
+上报包内部每 10 秒上报一次，自动附加 `type`、`nodeId`、`instanceId` 并签名；失败不抛异常，等下一次。
 
+### 7.1 上报字段
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `type` | String | 必填，服务类型：`login`（登录服）、`callback`（回调服）、`logic`（游戏服），写死在各服务代码里 |
+| `nodeId` | String | zfoo 节点 ID（`login-1`、`callback-1`、`logic-1`），只用于显示 |
+| `instanceId` | String | 实例 ID，见 7.2 |
+| `serverId` | int | 只有游戏服上报，表示区号；登录服、回调服不带 |
+| `host` | String | 公网地址；登录服、回调服的 `server.public-host` 为空时用内网地址 |
+| `port` | int | 实际监听的端口（游戏服为客户端连接端口，登录服、回调服为 HTTP 端口） |
+| `innerHost` | String | 内网地址，`server.inner-host`，为空时自动取本机网卡的内网 IPv4 |
+| `gmPort` | int | GM 接口实际监听的端口，没有 GM 接口填 0（登录服、回调服固定 0） |
+
+示例（登录服）：
+
+```json
+{ "type": "login", "nodeId": "login-1", "instanceId": "12", "host": "111.230.143.165", "port": 9030, "innerHost": "10.0.0.8", "gmPort": 0 }
+```
+
+字段只增不改：新增字段追加，不改名、不改类型、不删除。
+
+### 7.2 地址、密钥、实例 ID
+
+| 项 | 后台托管启动 | 手动启动 |
+| --- | --- | --- |
+| 上报地址 | Agent 注入环境变量 `ADM_REPORT_URL` | 配置 `admin.report-url` |
+| 上报密钥 | Agent 注入环境变量 `ADM_REPORT_SECRET` | 配置 `admin.report-secret` |
+| 实例 ID | Agent 注入环境变量 `ADM_INSTANCE_ID`，值为后台进程 ID，重启不变，后台据此把服务绑定到进程 | 启动时随机生成，后台显示为「未托管」 |
+
+- 环境变量优先，配置项是手动启动时的兜底；地址或密钥都为空时不上报。后台托管的进程不需要在配置文件里写任何后台相关的东西。
+- 密钥是**项目上报密钥**（后台「进程管理 → 上报配置」查看），不再是 `gm.secret`。
+
+### 7.3 请求与签名（不变）
+
+- 请求：`POST <上报地址>`，`Content-Type: application/json`，请求体为 7.1 的 JSON。
 - 请求头：
 
   | 请求头 | 值 |
   | --- | --- |
   | `X-Admin-Project` | 本服 `app.key` |
   | `X-Admin-Timestamp` | 当前毫秒时间戳 |
-  | `X-Admin-Signature` | `HMAC-SHA256(gm.secret, 时间戳 + "\n" + SHA256(请求体))`，SHA256 和 HMAC 都输出小写十六进制 |
+  | `X-Admin-Signature` | `HMAC-SHA256(上报密钥, 时间戳 + "\n" + SHA256(请求体))`，SHA256 和 HMAC 都输出小写十六进制 |
 
-- 时机：就绪后立即上报一次，之后每 10 秒一次；失败只打印警告。
-- `admin.report-url` 或 `gm.secret` 为空时不向后台上报。
-- 后台按 `App Key → 区 ID` 两层 key 覆盖保存，`当前时间 - 上报时间 ≤ 30 秒` 视为在线；记录不删除。验签和存储规则见 admin-background `docs/服务发现改造.md`。
+### 7.4 时机与存储
+
+- 时机：服务就绪后开始上报（游戏服：客户端端口、GM 接口启动后；登录服、回调服：HTTP 服务和 zfoo provider 启动后），之后每 10 秒一次；失败只打印警告。
+- 后台按 `App Key → instanceId` 保存，`当前时间 - 上报时间 ≤ 30 秒` 视为在线。验签和存储规则见 admin-background 的文档。
+- 服务之间的 zfoo 服务发现（第 2～6 节）不受影响。
 
 ## 8. 端口规则（游戏服）
 

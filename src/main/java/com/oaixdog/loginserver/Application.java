@@ -3,6 +3,7 @@ package com.oaixdog.loginserver;
 import com.oaixdog.loginserver.config.ApplicationProperties;
 import com.oaixdog.loginserver.protocol.LoginRequest;
 import com.oaixdog.loginserver.protocol.VersionRequest;
+import com.oaixdog.loginserver.service.AdminReportService;
 import com.zfoo.net.core.HostAndPort;
 import com.zfoo.net.core.http.HttpServer;
 import com.zfoo.net.packet.DecodedPacketInfo;
@@ -46,6 +47,8 @@ public class Application {
         HttpServer server = new HttpServer(HostAndPort.valueOf(properties.getHost(), properties.getPort()), requestResolver);
 
         server.start();
+        // provider 在 context.refresh() 时已启动，HTTP 也已启动，开始向管理后台上报
+        context.getBean(AdminReportService.class).start(properties.getPort());
         ThreadUtils.sleep(Long.MAX_VALUE);
     }
 
