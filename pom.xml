@@ -17,6 +17,8 @@
         <mybatis-plus.version>3.5.12</mybatis-plus.version>
         <mybatis-spring.version>3.0.4</mybatis-spring.version>
         <lombok.version>1.18.38</lombok.version>
+        <!-- 发布包名：主 jar、发布目录、zip 都用这个名字，不带版本号 -->
+        <dist.name>loginServer</dist.name>
     </properties>
 
     <dependencyManagement>
@@ -92,6 +94,69 @@
                     <target>${maven.compiler.target}</target>
                     <encoding>${project.build.sourceEncoding}</encoding>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <version>3.8.1</version>
+                <executions>
+                    <execution>
+                        <id>copy-libs</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>copy-dependencies</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/${dist.name}/lib</outputDirectory>
+                            <includeScope>runtime</includeScope>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- 发布包：mvn package 生成 target/${dist.name}/ 目录和两个 zip -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <execution>
+                        <id>clean-dist</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <delete dir="${project.build.directory}/${dist.name}"/>
+                            </target>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>make-dist</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <property name="dist" value="${project.build.directory}/${dist.name}"/>
+                                <copy file="${project.build.directory}/${project.build.finalName}.jar"
+                                      tofile="${dist}/${dist.name}.jar"/>
+                                <copy todir="${dist}/conf">
+                                    <fileset dir="${project.basedir}/conf"/>
+                                </copy>
+                                <!-- 日常发布包：不含环境相关的 application.properties，避免覆盖服务器上已改好的配置 -->
+                                <zip destfile="${project.build.directory}/${dist.name}.zip">
+                                    <fileset dir="${dist}" excludes="conf/application.properties"/>
+                                </zip>
+                                <!-- 首次安装包：含 application.properties（仓库里的值，按环境修改后使用） -->
+                                <zip destfile="${project.build.directory}/${dist.name}-install.zip">
+                                    <fileset dir="${dist}"/>
+                                </zip>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
