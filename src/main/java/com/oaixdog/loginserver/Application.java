@@ -3,7 +3,6 @@ package com.oaixdog.loginserver;
 import com.oaixdog.loginserver.config.ApplicationProperties;
 import com.oaixdog.loginserver.protocol.LoginRequest;
 import com.oaixdog.loginserver.protocol.VersionRequest;
-import com.oaixdog.loginserver.service.AdminReportService;
 import com.zfoo.net.core.HostAndPort;
 import com.zfoo.net.core.http.HttpServer;
 import com.zfoo.net.packet.DecodedPacketInfo;
@@ -13,22 +12,29 @@ import com.zfoo.protocol.util.ThreadUtils;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.QueryStringDecoder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.support.ClassPathXmlApplicationContext;
-import org.springframework.core.io.support.ResourcePropertySource;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.function.Function;
 
 public class Application {
-    public static void main(String[] args) throws IOException {
-        // 启动参数 -Dkey=value 可以覆盖 application.properties
-        ClassPathXmlApplicationContext context = new ClassPathXmlApplicationContext(new String[]{"config.xml"}, false);
-        context.getEnvironment().getPropertySources().addLast(new ResourcePropertySource("classpath:application.properties"));
-        context.refresh();
+    private static final Logger log = LoggerFactory.getLogger(Application.class);
+
+    public static void main(String[] args) {
+        ClassPathXmlApplicationContext context;
+        try {
+            context = new ClassPathXmlApplicationContext("config.xml");
+        } catch (RuntimeException e) {
+            // 事件定义在 net 开放端口之后才加载，失败时 net 的线程仍在运行，需要主动退出
+            log.error("启动失败", e);
+            System.exit(1);
+            return;
+        }
+        context.registerShutdownHook();
 
         ApplicationProperties properties = context.getBean(ApplicationProperties.class);
-        context.registerShutdownHook();
 
         Function<FullHttpRequest, DecodedPacketInfo> requestResolver = rawRequest -> {
             HttpAttachment attachment = HttpAttachment.valueOf(rawRequest, HttpResponseStatus.OK);
@@ -47,8 +53,6 @@ public class Application {
         HttpServer server = new HttpServer(HostAndPort.valueOf(properties.getHost(), properties.getPort()), requestResolver);
 
         server.start();
-        // provider 在 context.refresh() 时已启动，HTTP 也已启动，开始向管理后台上报
-        context.getBean(AdminReportService.class).start(properties.getPort());
         ThreadUtils.sleep(Long.MAX_VALUE);
     }
 

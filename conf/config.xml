@@ -3,6 +3,7 @@
        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
        xmlns:context="http://www.springframework.org/schema/context"
        xmlns:net="http://www.zfoo.com/schema/net"
+       xmlns:event="http://www.zfoo.com/schema/event"
        xmlns:scheduler="http://www.zfoo.com/schema/scheduler"
        xsi:schemaLocation="
              http://www.springframework.org/schema/beans
@@ -12,22 +13,30 @@
              http://www.zfoo.com/schema/net
              http://www.zfoo.com/schema/net-1.0.xsd
              http://www.zfoo.com/schema/event
-             http://www.zfoo.com/schema/net-1.0.xsd
+             http://www.zfoo.com/schema/event-1.0.xsd
              http://www.zfoo.com/schema/scheduler
              http://www.zfoo.com/schema/scheduler-1.0.xsd">
 
-    <context:property-placeholder location="classpath:application.properties" ignore-unresolvable="false"/>
+    <context:property-placeholder location="classpath:application.properties"/>
 
     <context:component-scan base-package="com.oaixdog.loginserver"/>
 
-    <net:net id="${server.node-id}" protocol-location="protocol.xml">
-        <net:registry center="zookeeper" path="/danmu/${app.key}" user="" password="">
+    <!-- provider：模块 login，provider 名 login（与模块名、服务类型一致），调用方的 consumer 填 login；consumer：连上管理后台后上报（ServerReport），事件日志发给 log（EventReport） -->
+    <net:net id="login" protocol-location="protocol.xml">
+        <net:registry center="zookeeper" path="${zookeeper.path}" user="" password="">
             <net:address name="zookeeper" url="${zookeeper.address}"/>
         </net:registry>
         <net:providers>
-            <net:provider protocol-module="login" provider="${server.service-name}"/>
+            <net:provider protocol-module="login" provider="login"/>
         </net:providers>
+        <net:consumers>
+            <net:consumer consumer="admin"/>
+            <net:consumer consumer="log"/>
+        </net:consumers>
     </net:net>
 
-    <scheduler:scheduler id="deepSeaWar"/>
+    <!-- 注册 @EventReceiver：AdminReportService 在连上管理后台时上报 -->
+    <event:event id="eventBus"/>
+
+    <scheduler:scheduler id="schedulerManager"/>
 </beans>

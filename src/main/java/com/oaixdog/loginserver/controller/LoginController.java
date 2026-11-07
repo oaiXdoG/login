@@ -4,8 +4,8 @@ import com.oaixdog.loginserver.exception.BusinessException;
 import com.oaixdog.loginserver.protocol.ApiResponse;
 import com.oaixdog.loginserver.protocol.LoginRequest;
 import com.oaixdog.loginserver.protocol.LoginResponse;
+import com.oaixdog.loginserver.service.EventReportService;
 import com.oaixdog.loginserver.service.LoginService;
-import com.oaixdog.logsdk.LogReporter;
 import com.zfoo.net.NetContext;
 import com.zfoo.net.anno.PacketReceiver;
 import com.zfoo.net.router.attachment.HttpAttachment;
@@ -24,6 +24,7 @@ public class LoginController {
     private static final Logger log = LoggerFactory.getLogger(LoginController.class);
 
     private final LoginService loginService;
+    private final EventReportService eventReportService;
 
     @PacketReceiver
     public void atLoginRequest(Session session, LoginRequest request, HttpAttachment attachment) {
@@ -37,7 +38,7 @@ public class LoginController {
             String token = request.getToken();
             String clientVersion = request.getClientVersion();
             String resourceVersion = request.getResourceVersion();
-            LoginService.LoginResult result = loginService.login(platform, account, token, clientVersion, resourceVersion, loginIp);
+            LoginService.LoginResult result = loginService.login(request.getServerId(), platform, account, token, clientVersion, resourceVersion, loginIp);
             LoginResponse data = LoginResponse.valueOf(result.loginTicket(), result.host(), result.port());
             attachment.setHttpResponseStatus(HttpResponseStatus.OK);
             NetContext.getRouter().send(session, ApiResponse.success(data), attachment);
@@ -58,16 +59,13 @@ public class LoginController {
      * 登录失败：type 为 business（版本过低、服务器维护中等）或 system（平台接口失败等）
      */
     private void reportLoginFail(Session session, LoginRequest request, String type, String reason) {
-        var event = LogReporter.event("anchor_login_fail")
-                .put("type", type)
-                .put("reason", reason)
-                .put("ip", SessionUtils.toIp(session));
-        if (request != null) {
-            event.put("platform", request.getPlatform())
-                    .put("account", request.getAccount())
-                    .put("clientVersion", request.getClientVersion())
-                    .put("resourceVersion", request.getResourceVersion());
-        }
-        event.send();
+        eventReportService.report("login_fail",
+                "type", type,
+                "reason", reason,
+                "ip", SessionUtils.toIp(session),
+                "platform", request == null ? null : request.getPlatform(),
+                "account", request == null ? null : request.getAccount(),
+                "clientVersion", request == null ? null : request.getClientVersion(),
+                "resourceVersion", request == null ? null : request.getResourceVersion());
     }
 }

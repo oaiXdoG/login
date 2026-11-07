@@ -6,7 +6,6 @@ import com.oaixdog.loginserver.exception.BusinessException;
 import com.oaixdog.loginserver.mapper.LoginUserMapper;
 import com.oaixdog.loginserver.pojo.LoginTicketData;
 import com.oaixdog.loginserver.protocol.LoginReport;
-import com.oaixdog.logsdk.LogReporter;
 import com.zfoo.protocol.util.JsonUtils;
 import com.zfoo.protocol.util.StringUtils;
 import lombok.RequiredArgsConstructor;
@@ -25,7 +24,6 @@ public class LoginService {
     private static final int LIVE_DATA_TASK_RETRY_TIMES = 3;
     private static final String DOUYIN_PLATFORM = "douyin";
     private static final String LOCAL_PLATFORM = "local";
-    private static final int DEFAULT_ZONE_ID = 1;
     private static final Duration ROOM_ROUTE_TTL = Duration.ofHours(12);
     private static final List<String> LIVE_DATA_MESSAGE_TYPES = List.of("live_comment", "live_gift", "live_like", "live_fansclub");
 
@@ -36,8 +34,9 @@ public class LoginService {
     private final VersionService versionService;
     private final ZoneService zoneService;
     private final RedisService redisService;
+    private final EventReportService eventReportService;
 
-    public LoginResult login(String platform, String account, String token, String clientVersion, String resourceVersion, String loginIp) {
+    public LoginResult login(Integer serverId, String platform, String account, String token, String clientVersion, String resourceVersion, String loginIp) {
         VersionService.VersionCheckResult versionResult = versionService.checkVersion(clientVersion, resourceVersion);
         if (versionResult.needClientUpdate()) {
             throw new BusinessException("客户端版本过低，请更新至 " + versionResult.serverClientVersion());
@@ -46,7 +45,10 @@ public class LoginService {
             throw new BusinessException("客户端资源版本过低，请更新至 " + versionResult.serverResourceVersion());
         }
 
-        LoginReport logic = zoneService.online(DEFAULT_ZONE_ID);
+        if (serverId == null) {
+            throw new BusinessException("区服 ID 不能为空");
+        }
+        LoginReport logic = zoneService.online(serverId);
         if (logic == null) {
             throw new BusinessException("服务器维护中");
         }
@@ -79,26 +81,28 @@ public class LoginService {
             roomId = String.valueOf(liveRoomInfo.roomId());
             startLiveDataTasks(liveRoomInfo.roomId());
             // 回调服按直播间找区：直播间 → 区号，每次登录覆盖
-            String roomRoute = JsonUtils.object2String(Map.of("zoneId", DEFAULT_ZONE_ID));
-            redisService.set("danmu:" + properties.getAppKey() + ":room:" + liveRoomInfo.roomId(), roomRoute, ROOM_ROUTE_TTL);
+            String roomRoute = JsonUtils.object2String(Map.of("zoneId", serverId));
+            redisService.set("room:" + liveRoomInfo.roomId(), roomRoute, ROOM_ROUTE_TTL);
             String nickname = liveRoomInfo.nickName() == null ? "" : liveRoomInfo.nickName();
             String avatarUrl = liveRoomInfo.avatarUrl() == null ? "" : liveRoomInfo.avatarUrl();
             user = loginUserMapper.upsert(DOUYIN_PLATFORM, properties.getDouyinAppId(), liveRoomInfo.anchorOpenId(), nickname, avatarUrl, loginIp);
         }
 
-        LoginTicketData ticketData = LoginTicketData.valueOf(user.getId(), user.getAnchorOpenId(), DEFAULT_ZONE_ID);
+        // 票据带过期时间，游戏服解开后超过 expireAt 即拒绝，客户端重新登录
+        long expireAt = System.currentTimeMillis() + properties.getTicketExpireSeconds() * 1000L;
+        LoginTicketData ticketData = LoginTicketData.valueOf(user.getId(), user.getAnchorOpenId(), serverId, expireAt);
         String loginJson = JsonUtils.object2String(ticketData);
         String loginTicket = loginTicketService.encrypt(loginJson);
 
-        // actor 是登录服账号 ID（login_user.id），游戏服的事件里以 userId 关联
-        LogReporter.event("anchor_login").actor(user.getId())
-                .put("platform", loginPlatform)
-                .put("roomId", roomId)
-                .put("zoneId", DEFAULT_ZONE_ID)
-                .put("ip", loginIp)
-                .put("clientVersion", clientVersion)
-                .put("resourceVersion", resourceVersion)
-                .send();
+        // userId 是登录服账号 ID（login_user.id），游戏服的事件里以 userId 关联
+        eventReportService.report("login",
+                "userId", user.getId(),
+                "platform", loginPlatform,
+                "roomId", roomId,
+                "zoneId", serverId,
+                "ip", loginIp,
+                "clientVersion", clientVersion,
+                "resourceVersion", resourceVersion);
 
         return new LoginResult(loginTicket, logic.getHost(), logic.getPort());
     }

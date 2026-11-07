@@ -12,6 +12,16 @@
         <protocol location="com.zfoo.net.packet.common.Pong"/>
     </module>
 
+    <!-- 服务之间的 RPC：admin 模块，登录服作为 consumer 向管理后台上报，见 protocol 工程 AGENTS.md -->
+    <module id="3" name="admin">
+        <protocol location="com.oaixdog.protocol.admin"/>
+    </module>
+
+    <!-- 服务之间的 RPC：log 模块，登录服作为 consumer 上报事件日志 -->
+    <module id="4" name="log">
+        <protocol location="com.oaixdog.protocol.log"/>
+    </module>
+
     <!-- 登录服的协议模块，模块号与游戏服一致，协议号按模块号 × 1000；LoginReport、LoginReportAnswer 与游戏服共用，协议号、字段保持一致 -->
     <module id="5" name="login">
         <protocol location="com.oaixdog.loginserver.protocol.LoginReport"/>

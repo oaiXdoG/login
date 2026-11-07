@@ -14,29 +14,14 @@ public class ApplicationProperties {
     @Value("${server.port}")
     private int port;
 
-    @Value("${server.public-host}")
-    private String publicHost;
-
-    @Value("${server.inner-host}")
-    private String innerHost;
-
-    @Value("${server.node-id}")
-    private String nodeId;
-
     @Value("${app.key}")
     private String appKey;
 
-    @Value("${admin.report-url}")
-    private String adminReportUrl;
-
-    @Value("${admin.report-secret}")
-    private String adminReportSecret;
-
-    @Value("${log.dir}")
-    private String logDir;
-
     @Value("${ticket-key}")
     private String loginTicketKey;
+
+    @Value("${ticket-expire-seconds}")
+    private long ticketExpireSeconds;
 
     @Value("${douyin.app-id}")
     private String douyinAppId;
