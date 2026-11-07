@@ -38,7 +38,7 @@ public class LoginController {
             String token = request.getToken();
             String clientVersion = request.getClientVersion();
             String resourceVersion = request.getResourceVersion();
-            LoginService.LoginResult result = loginService.login(request.getServerId(), platform, account, token, clientVersion, resourceVersion, loginIp);
+            LoginService.LoginResult result = loginService.login(platform, account, token, clientVersion, resourceVersion, loginIp);
             LoginResponse data = LoginResponse.valueOf(result.loginTicket(), result.host(), result.port());
             attachment.setHttpResponseStatus(HttpResponseStatus.OK);
             NetContext.getRouter().send(session, ApiResponse.success(data), attachment);

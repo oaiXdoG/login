@@ -1,6 +1,6 @@
 package com.oaixdog.loginserver.controller;
 
-import com.oaixdog.loginserver.service.ZoneService;
+import com.oaixdog.loginserver.service.GameOnlineService;
 import com.oaixdog.loginserver.protocol.LoginReport;
 import com.oaixdog.loginserver.protocol.LoginReportAnswer;
 import com.zfoo.net.NetContext;
@@ -14,11 +14,11 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class LoginReportController {
 
-    private final ZoneService zoneService;
+    private final GameOnlineService gameOnlineService;
 
     @PacketReceiver
     public void atLoginReport(Session session, LoginReport report, SignalAttachment attachment) {
-        LoginReportAnswer answer = zoneService.report(session, report);
+        LoginReportAnswer answer = gameOnlineService.report(session, report);
         NetContext.getRouter().send(session, answer, attachment);
     }
 }

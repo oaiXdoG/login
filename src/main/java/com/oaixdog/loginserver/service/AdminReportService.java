@@ -13,14 +13,14 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
- * 每连上一台管理后台（provider admin）就上报一次服务类型和区服 ID；管理后台重启后 zfoo 重新连上，会再次触发。
+ * 每连上一台管理后台（provider admin）就上报一次服务类型；管理后台重启后 zfoo 重新连上，会再次触发。
  */
 @Service
 public class AdminReportService {
 
     private static final Logger log = LoggerFactory.getLogger(AdminReportService.class);
 
-    private static final ServerReport REPORT = ServerReport.valueOf("login", 0);
+    private static final ServerReport REPORT = ServerReport.valueOf("login");
 
     @EventReceiver
     public void onConsumerStartEvent(ConsumerStartEvent event) {

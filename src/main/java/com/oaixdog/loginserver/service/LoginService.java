@@ -12,9 +12,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.time.Duration;
 import java.util.List;
-import java.util.Map;
 
 @Slf4j
 @Service
@@ -24,7 +22,6 @@ public class LoginService {
     private static final int LIVE_DATA_TASK_RETRY_TIMES = 3;
     private static final String DOUYIN_PLATFORM = "douyin";
     private static final String LOCAL_PLATFORM = "local";
-    private static final Duration ROOM_ROUTE_TTL = Duration.ofHours(12);
     private static final List<String> LIVE_DATA_MESSAGE_TYPES = List.of("live_comment", "live_gift", "live_like", "live_fansclub");
 
     private final ApplicationProperties properties;
@@ -32,11 +29,10 @@ public class LoginService {
     private final LoginUserMapper loginUserMapper;
     private final LoginTicketService loginTicketService;
     private final VersionService versionService;
-    private final ZoneService zoneService;
-    private final RedisService redisService;
+    private final GameOnlineService gameOnlineService;
     private final EventReportService eventReportService;
 
-    public LoginResult login(Integer serverId, String platform, String account, String token, String clientVersion, String resourceVersion, String loginIp) {
+    public LoginResult login(String platform, String account, String token, String clientVersion, String resourceVersion, String loginIp) {
         VersionService.VersionCheckResult versionResult = versionService.checkVersion(clientVersion, resourceVersion);
         if (versionResult.needClientUpdate()) {
             throw new BusinessException("客户端版本过低，请更新至 " + versionResult.serverClientVersion());
@@ -45,10 +41,7 @@ public class LoginService {
             throw new BusinessException("客户端资源版本过低，请更新至 " + versionResult.serverResourceVersion());
         }
 
-        if (serverId == null) {
-            throw new BusinessException("区服 ID 不能为空");
-        }
-        LoginReport logic = zoneService.online(serverId);
+        LoginReport logic = gameOnlineService.online();
         if (logic == null) {
             throw new BusinessException("服务器维护中");
         }
@@ -80,9 +73,6 @@ public class LoginService {
             loginPlatform = DOUYIN_PLATFORM;
             roomId = String.valueOf(liveRoomInfo.roomId());
             startLiveDataTasks(liveRoomInfo.roomId());
-            // 回调服按直播间找区：直播间 → 区号，每次登录覆盖
-            String roomRoute = JsonUtils.object2String(Map.of("zoneId", serverId));
-            redisService.set("room:" + liveRoomInfo.roomId(), roomRoute, ROOM_ROUTE_TTL);
             String nickname = liveRoomInfo.nickName() == null ? "" : liveRoomInfo.nickName();
             String avatarUrl = liveRoomInfo.avatarUrl() == null ? "" : liveRoomInfo.avatarUrl();
             user = loginUserMapper.upsert(DOUYIN_PLATFORM, properties.getDouyinAppId(), liveRoomInfo.anchorOpenId(), nickname, avatarUrl, loginIp);
@@ -90,7 +80,7 @@ public class LoginService {
 
         // 票据带过期时间，游戏服解开后超过 expireAt 即拒绝，客户端重新登录
         long expireAt = System.currentTimeMillis() + properties.getTicketExpireSeconds() * 1000L;
-        LoginTicketData ticketData = LoginTicketData.valueOf(user.getId(), user.getAnchorOpenId(), serverId, expireAt);
+        LoginTicketData ticketData = LoginTicketData.valueOf(user.getId(), user.getAnchorOpenId(), expireAt);
         String loginJson = JsonUtils.object2String(ticketData);
         String loginTicket = loginTicketService.encrypt(loginJson);
 
@@ -99,7 +89,6 @@ public class LoginService {
                 "userId", user.getId(),
                 "platform", loginPlatform,
                 "roomId", roomId,
-                "zoneId", serverId,
                 "ip", loginIp,
                 "clientVersion", clientVersion,
                 "resourceVersion", resourceVersion);
