@@ -78,7 +78,7 @@ public class LoginService {
 
         // 票据带过期时间，游戏服解开后超过 expireAt 即拒绝，客户端重新登录
         long expireAt = System.currentTimeMillis() + properties.getTicketExpireSeconds() * 1000L;
-        LoginTicketData ticketData = LoginTicketData.valueOf(user.getId(), user.getAnchorOpenId(), expireAt);
+        LoginTicketData ticketData = LoginTicketData.valueOf(user.getId(), user.getAnchorOpenId(), roomId, expireAt);
         String loginJson = JsonUtils.object2String(ticketData);
         String loginTicket = loginTicketService.encrypt(loginJson);
 
