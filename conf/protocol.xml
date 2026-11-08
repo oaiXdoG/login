@@ -22,14 +22,18 @@
         <protocol location="com.oaixdog.protocol.log"/>
     </module>
 
-    <!-- 登录服的协议模块，模块号与游戏服一致，协议号按模块号 × 1000；LoginReport、LoginReportAnswer 与游戏服共用，协议号、字段保持一致 -->
+    <!-- 客户端 HTTP 协议 -->
     <module id="5" name="login">
-        <protocol location="com.oaixdog.loginserver.protocol.LoginReport"/>
-        <protocol location="com.oaixdog.loginserver.protocol.LoginReportAnswer"/>
         <protocol location="com.oaixdog.loginserver.protocol.LoginRequest"/>
         <protocol location="com.oaixdog.loginserver.protocol.VersionRequest"/>
         <protocol location="com.oaixdog.loginserver.protocol.LoginResponse"/>
         <protocol location="com.oaixdog.loginserver.protocol.VersionResponse"/>
+    </module>
+
+    <!-- 登录服消费游戏服。ServerInfo 用来取客户端要连的 host 和 port -->
+    <module id="7" name="daoshinvgui">
+        <protocol location="com.oaixdog.protocol.daoshinvgui.ServerInfo"/>
+        <protocol location="com.oaixdog.protocol.daoshinvgui.ServerInfoReply"/>
     </module>
 
 </protocols>

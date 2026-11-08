@@ -32,6 +32,8 @@
         <net:consumers>
             <net:consumer consumer="admin"/>
             <net:consumer consumer="log"/>
+            <!-- 向游戏服要客户端连接地址，协议 ServerInfo -->
+            <net:consumer load-balancer="random" consumer="daoshinvgui"/>
         </net:consumers>
     </net:net>
 
