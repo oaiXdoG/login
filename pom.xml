@@ -79,6 +79,7 @@
 
     <!--
         mvn install 后 target/login 下的产物：
+        bin/app.sh     启停、发布、回滚（源文件在项目的 bin/）
         conf/          配置文件
         lib/login.jar    程序 jar
         lib/extra/     依赖 jar
@@ -150,7 +151,7 @@
                         </configuration>
                     </execution>
                     <execution>
-                        <!-- 统一的启停脚本，源文件在 danmu 根目录的 ops/bin -->
+                        <!-- bin/app.sh：启停、发布、回滚，和 conf 一样随包发布 -->
                         <id>copy-bin</id>
                         <phase>package</phase>
                         <goals>
@@ -160,7 +161,7 @@
                             <outputDirectory>${dist.directory}/bin</outputDirectory>
                             <resources>
                                 <resource>
-                                    <directory>${project.basedir}/../ops/bin</directory>
+                                    <directory>bin</directory>
                                 </resource>
                             </resources>
                         </configuration>
